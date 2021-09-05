@@ -1,5 +1,5 @@
 # eBPF-Research
-### Documenting eBPF under the context of AuroraHosts for learning and implementation purposes.
+###### Documenting eBPF under the context of AuroraHosts for learning and implementation purposes.
 
 ## What is eBPF?
 On a basic level, eBPF allows you to run code kernel-side. Typically programs are meant to be run in userspace, this is where 99% of programs run. Userspace programs then can interact with the machine via system calls to the kernel. eBPF programs on the other hand, run as part of the kernel. Because of this, they are much more restricted than userspace programs but are a lot more low level and much more efficient. 
