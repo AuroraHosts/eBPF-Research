@@ -7,7 +7,7 @@
 First of all, eBPF stands for **e**xtended **B**erkeley **P**acket **F**ilter. Now onto a basic level, eBPF allows you to run code kernel-side. Typically programs are meant to be run in userspace, this is where 99% of programs run. Userspace programs then can interact with the machine via system calls to the kernel. eBPF programs on the other hand, run as part of the kernel. Because of this, they are much more restricted than userspace programs but are a lot more low level and much more efficient. 
 
 eBPF programs must also pass a verifier check before they can begin execution, the [verifier](https://github.com/torvalds/linux/blob/9e9fb7655ed585da8f468e29221f0ba194a5f613/kernel/bpf/verifier.c) is a part of the kernel (it's about a 14000 line file) that makes sure eBPF programs are safe to run. It will commonly check for:
-* Unbounded loops/While loops
+* Unbounded loops/While true loops
 * Infinite looping/infinite recursion
 * Invalid memory accesses (accessing memory beyond what's allocated to the program)
 * Much much more, the verifier is an incredibly complex program.
@@ -56,4 +56,39 @@ Now onto the workings of XDP programs in C. An XDP program in C will always star
 There are other variables as part of the xdp_md struct however they are not needed for the basic implementation of an XDP filter.
 
 
+
+## Writing a basic XDP program
+
+Writing XDP programs, or eBPF programs in general are a bit different from traditional programs code-wise. As mentioned before they are run from a single function which is executed through every packet. The following is a very basic example of an XDP filter.
+
+```c
+#include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
+
+SEC("xdp_pass")
+int pass_filter(struct *xdp_md ctx) {
+    return XDP_PASS;
+}
+
+char _license[] SEC("license") = "GPL";
+```
+
+1. The first bpf.h include is necessary for all BPF programs as it defines many important structs and methods for BPF programs.
+
+2. As the name implies, the bpf_helpers header contains many helpers for BPF programs, they wrap many of the BPF syscalls into easy-to-use functions. In this example we're only using the "SEC" macro from this header, it defines ELF sections for the compiler. 
+
+3. Next we have the main function called pass_filter, it gets defined under the "xdp_pass" section and takes in an xdp_md struct pointer called ctx. This represents the context of the packet we're passing in.
+
+4. In the function pass_filter, we only return XDP_PASS. This is one of a few actions or return codes in XDP. XDP_PASS just means that we should let the current packet (as passed in by the ctx pointer) pass up the network stack. There are a few more XDP actions such as:
+
+   * XDP_DROP
+   * XDP_TX
+   * XDP_ABORTED
+   * XDP_REDIRECT
+
+   DROP and PASS are the most widely used in XDP filtering. DROP is the counterpart to PASS, it just means to drop the packet and do not let it continue up the network stack.
+
+5. Finally we define a license section, using the GPL license. This is often necessary as the kernel will not let you load an eBPF program that uses GPL licensed functions without having a GPL license on your program. 
+
+> Note: All XDP sample programs can be found in the samples folder included in the repo.
 
