@@ -92,3 +92,13 @@ char _license[] SEC("license") = "GPL";
 
 > Note: All XDP sample programs can be found in the samples folder included in the repo.
 
+Now you can test this sample by compiling it into an object file and loading it into the kernel. Clang is currently the only compiler that supports bpf compilation so Clang must be installed. Once it's been installed, you can compile by running the following command:
+
+```bash
+clang -Wall -O2 -g -target bpf -c xdp_pass.c -o xdp_pass.o
+```
+
+This compiles the XDP program into an object file that can be loaded into the kernel. Unlike traditional programming, this does not have to be linked into an executable. 
+
+> Note: If compilation fails, you may be missing some kernel headers. Clone the [LightGate](https://github.com/AuroraHosts/LightGate/tree/c-rework) repository and execute run.sh for it to download and install many of the necessary headers and dependencies.
+
