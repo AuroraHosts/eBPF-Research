@@ -146,4 +146,5 @@ The next topic of this section is the actual performance itself, how fast do XDP
 
 > Image taken from: https://cilium.io/blog/2018/04/17/why-is-the-kernel-community-replacing-iptables
 
-While the eBPF program was running in offloaded mode, it still goes to show the drastic improvements by using eBPF and XDP.
+While the eBPF program was running in offloaded mode, it still goes to show the drastic improvements by using eBPF and XDP. 
+
