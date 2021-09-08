@@ -57,7 +57,7 @@ There are other variables as part of the xdp_md struct however they are not need
 
 
 
-## Writing a basic XDP program
+## Writing and loading a basic XDP program
 
 Writing XDP programs, or eBPF programs in general are a bit different from traditional programs code-wise. As mentioned before they are run from a single function which is executed through every packet. The following is a very basic example of an XDP filter.
 
@@ -101,4 +101,26 @@ clang -Wall -O2 -g -target bpf -c xdp_pass.c -o xdp_pass.o
 This compiles the XDP program into an object file that can be loaded into the kernel. Unlike traditional programming, this does not have to be linked into an executable. 
 
 > Note: If compilation fails, you may be missing some kernel headers. Clone the [LightGate](https://github.com/AuroraHosts/LightGate/tree/c-rework) repository and execute run.sh for it to download and install many of the necessary headers and dependencies.
+
+Once compiled, we can load this object file onto the kernel. We can do this through one of the LightGate's dependencies, xdp-tools. Xdp-tools contains various programs that can help with XDP development, such as xdp-loader. Traditionally, loading is done the iproute command, with xdp-loader, it's abstracted into a more simple command that also does some background tracking. Now onto loading, move to the xdp-loader directory within the xdp-tools repository. Now you can load the XDP program onto the kernel by running the following command:
+
+```bash
+./xdp-loader load -m skb (network interface name) (path to your XDP object file).o
+```
+
+If all goes well, this will load your program onto the kernel and attaches itself to the given network interface. You can also see all loaded XDP programs in a nice table with the following command:
+
+```bash
+./xdp-loader status
+```
+
+Through this, you should see your XDP program loaded onto the network interface you chose. That's great, but, it doesn't really do much. At this point it's a useless program as it just passes everything unconditionally, but this serves as a basic "Hello, World!" type program and ensures the environment is setup for further and more advanced development. Well before we go any further you would probably want to unload the previous program. You can do so with the following:
+
+```bash
+./xdp-loader unload (interface you chose) -a
+```
+
+This unloads all XDP programs on the interface. The -a specifies all XDP programs, if you wanted to remove a single one you could use the -i (program ID) flag instead. 
+
+> Note: You can find the program ID in the xdp-loader status command.
 
