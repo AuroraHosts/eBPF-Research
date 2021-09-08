@@ -124,3 +124,26 @@ This unloads all XDP programs on the interface. The -a specifies all XDP program
 
 > Note: You can find the program ID in the xdp-loader status command.
 
+
+
+## Additional information about XDP
+
+This section will just contain some extra information about XDP and eBPF, it is nice to know but not required to understand. In the previous section, we loaded an XDP program using xdp-loader. We used the -m skb flag in that command. The -m represents "mode" while "skb" represents one of a few XDP modes. An XDP mode is just the way an XDP program is attached to the kernel, there are 3 possible modes to attach an XDP program:
+
+1. SKB (Aka, generic mode)
+2. DRV (Aka, native mode)
+3. HW (Aka, offload mode)
+
+The modes don't change how your XDP program will work, they only change how it will run. While you can run XDP programs in generic mode on almost any system running a sufficiently new Kernel, you should look into the benefits of the other modes when applicable. 
+
+1. Generic mode is considered the least efficient of all three modes, however it's benefit is its portability. Typically to run XDP programs, you need a network driver that supports it, except in generic mode when this driver gets emulated. This is what allows its portability to many systems.
+2. Native mode is generally faster than the previous mode as it skips the emulation step. This mode is for when you have a network driver that has XDP support, this support is generally found in enterprise hardware. 
+3. Offload mode, as the name implies, allows you to offload programs onto the network card itself. This means that all the XDP processing gets done on the network card itself, instead of getting run by the CPU. While this has some performance benefits, its use is very niche as it has much less support than native or generic mode programs. This lack of features and support is mostly seen when using eBPF maps (which will be explored later).
+
+The next topic of this section is the actual performance itself, how fast do XDP programs really run? Well, the answer is very fast. Before XDP started to creep into the standard for mitigation, iptables were and still are one of the most widely used methods of mitigation. Iptables aren't known for their speed though, evidently they won't compare to an eBPF program. The following is a chart comparing the number of packets handled by different filtering tools. 
+
+![BPF performance test by Cilium](C:\Code Related\eBPF Work\eBPF-Research\img\bpfilter_performance.png)
+
+> Image taken from: https://cilium.io/blog/2018/04/17/why-is-the-kernel-community-replacing-iptables
+
+While the eBPF program was running in offloaded mode, it still goes to show the drastic improvements by using eBPF and XDP.
