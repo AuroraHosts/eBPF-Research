@@ -148,3 +148,55 @@ The next topic of this section is the actual performance itself, how fast do XDP
 
 While the eBPF program was running in offloaded mode, it still goes to show the drastic improvements by using eBPF and XDP. 
 
+
+
+## Implementing filtering methods into XDP
+
+There are infinite methods of filtration that we can create with XDP however we'll start simple, with port punching. Port punching is a very effective method of general filtering that should be applied whenever possible. It consists of only opening ports that we're using and keeping everything else closed. Simple, right? To implement this we have to first delve into packet parsing, specifically parsing the different headers of a packet (ethernet header, IP header, etc). Now let's get started. We'll be going back to the previous XDP example, we'll only be changing the name of the section and name of the function for conventional purposes.
+
+```c
+SEC("xdp_filter")
+int xdp_filter(struct *xdp_md ctx) {
+    void *data = (void *) (long) ctx->data;
+    void *data_end = (void *) (long) ctx->data_end;
+    
+    struct ethhdr *eth = data;
+    struct iphdr *ip = data + sizeof(*eth);
+    
+    if ((void *) ip + sizeof(*ip) <= data_end) {
+        if (ip->protocol == IPPROTO_UDP) {
+            return XDP_DROP;
+        }
+    }
+    return XDP_PASS;
+}
+```
+
+While this may seem complicated, it should be stated that most of this code is boilerplate code, meaning it is generally replicated across many XDP programs. However this still seems a bit unintuitive, so let's comment it to make a bit more sense out of it.
+
+```c
+SEC("xdp_filter")
+int xdp_filter(struct *xdp_md ctx) {
+    // These are standard, they convert the ctx->data and ctx->data_end values to pointers. As mentioned before, data represents the pointer to the first byte of the packet while data_end represents the pointer to the last byte of the packet.
+    void *data = (void *) (long) ctx->data;
+    void *data_end = (void *) (long) ctx->data_end;
+    
+    // The two next lines are also pretty standard, they parse the Ethernet header and the IP header. This gives us access to many of the information found in these headers (such as the packet's source address, destination address, protocol, etc). While you also have access to the Ethernet header, it generally isn't used much.
+    struct ethhdr *eth = data;
+    struct iphdr *ip = data + sizeof(*eth);
+    
+    // This if statement is to please the aforementioned eBPF verifier. The verifier doesn't like when there are any possibilities of errors so without this next line, the verifier would not allow the program to run. This is because it could produce an error if the packet was malformed. The condition is essentially checking if the bytes within the IP header are within the bounds of the last byte of the packet. Otherwise we could have an out of bounds memory access.
+    if ((void *) ip + sizeof(*ip) <= data_end) {
+        
+        // This line is not standard, this is our "filtering." It's not very complex though. It's just checking if the current packet is a UDP packet. This is done by using the IP protocol number found in the IP header. Each IP-based protocol has its own number, the number for UDP is 17. IPPROTO_UDP is just a constant that's easier to remember than 17. There also exists constants for other protocols, like IPPROTO_TCP.
+        if (ip->protocol == IPPROTO_UDP) {
+            // This final line just drops the packet if it is a UDP packet.
+            return XDP_DROP;
+        }
+    }
+    // This is just here because we have to return a value at the end of our function, in this case we just want to pass any packets that are not UDP packets.
+    return XDP_PASS;
+}
+```
+
+While this is a valid XDP program, it isn't any good for filtering. It's only goal is to block any UDP packets from entering the network stack, but maybe this can be useful in very niche cases. Anyways, it's main goal was to serve as an example for parsing IP and Ethernet headers. Now onto some proper port punching.
