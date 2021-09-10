@@ -177,26 +177,83 @@ While this may seem complicated, it should be stated that most of this code is b
 ```c
 SEC("xdp_filter")
 int xdp_filter(struct *xdp_md ctx) {
-    // These are standard, they convert the ctx->data and ctx->data_end values to pointers. As mentioned before, data represents the pointer to the first byte of the packet while data_end represents the pointer to the last byte of the packet.
+    // These are standard, they convert the ctx->data and ctx->data_end values to
+    // pointers. As mentioned before, data represents the pointer to the first byte of 
+    // the packet while data_end represents the pointer to the last byte of the packet.
     void *data = (void *) (long) ctx->data;
     void *data_end = (void *) (long) ctx->data_end;
     
-    // The two next lines are also pretty standard, they parse the Ethernet header and the IP header. This gives us access to many of the information found in these headers (such as the packet's source address, destination address, protocol, etc). While you also have access to the Ethernet header, it generally isn't used much.
+    // The two next lines are also pretty standard, they parse the Ethernet header
+    // and the IP header. This gives us access to many of the information found in 
+    // these headers (such as the packet's source address, destination address, 
+    // protocol, etc). While you also have access to the Ethernet header, it generally 		// isn't used much.
     struct ethhdr *eth = data;
     struct iphdr *ip = data + sizeof(*eth);
     
-    // This if statement is to please the aforementioned eBPF verifier. The verifier doesn't like when there are any possibilities of errors so without this next line, the verifier would not allow the program to run. This is because it could produce an error if the packet was malformed. The condition is essentially checking if the bytes within the IP header are within the bounds of the last byte of the packet. Otherwise we could have an out of bounds memory access.
+    // This if statement is to please the aforementioned eBPF verifier. 
+    // The verifier doesn't like when there are any possibilities of errors 
+    // so without this next line, the verifier would not allow the program to run. 
+    // This is because it could produce an error if the packet was malformed. 
+    // The condition is essentially checking if the bytes within the IP header 
+    // are within the bounds of the last byte of the packet. Otherwise we could have an 	// out of bounds memory access.
     if ((void *) ip + sizeof(*ip) <= data_end) {
         
-        // This line is not standard, this is our "filtering." It's not very complex though. It's just checking if the current packet is a UDP packet. This is done by using the IP protocol number found in the IP header. Each IP-based protocol has its own number, the number for UDP is 17. IPPROTO_UDP is just a constant that's easier to remember than 17. There also exists constants for other protocols, like IPPROTO_TCP.
+        // This line is not standard, this is our "filtering." It's not very complex
+        // though. It's just checking if the current packet is a UDP packet. This 
+        // is done by using the IP protocol number found in the IP header. Each 
+        // IP-based protocol has its own number, the number for UDP is 17. 
+        //IPPROTO_UDP is just a constant that's easier to remember than 17. 
+        // There also exists constants for other protocols, like IPPROTO_TCP.
         if (ip->protocol == IPPROTO_UDP) {
             // This final line just drops the packet if it is a UDP packet.
             return XDP_DROP;
         }
     }
-    // This is just here because we have to return a value at the end of our function, in this case we just want to pass any packets that are not UDP packets.
+    // This is just here because we have to return a value at the end of our 
+    // function, in this case we just want to pass any packets that are not UDP packets.
     return XDP_PASS;
 }
 ```
 
 While this is a valid XDP program, it isn't any good for filtering. It's only goal is to block any UDP packets from entering the network stack, but maybe this can be useful in very niche cases. Anyways, it's main goal was to serve as an example for parsing IP and Ethernet headers. Now onto some proper port punching.
+
+```c
+SEC("xdp_punch")
+int xdp_port_punch(struct *xdp_md ctx) {
+    void *data = (void *) (long) ctx->data;
+    void *data_end = (void *) (long) ctx->data_end;
+    
+    struct ethhdr *eth = data;
+    struct iphdr *ip = data + sizeof(*eth);
+    
+    if ((void *) ip + sizeof(*ip) <= data_end) {
+        if (ip->protocol == IPPROTO_TCP) {
+            struct tcphdr *tcp = (void *) ip + sizeof(*ip);
+            if ((void *) tcp + sizeof(*tcp) <= data_end) {
+                if (htons(tcp->dest) != 22) {
+                    return XDP_DROP;
+                }
+            }
+        }
+    }
+    return XDP_PASS;
+}
+```
+
+This example will block all TCP packets that are not to port 22 (SSH port). While we could also have this block UDP packets as well as other protocols, we'll stick to blocking TCP traffic for now. There are a few new things in this example though. Firstly, we changed the IPPROTO_UDP from the last example to IPPROTO_TCP, so that we can know which packets are TCP based. Next we can safely parse the TCP header ([tcphdr struct](https://github.com/torvalds/linux/blob/master/include/uapi/linux/tcp.h#:~:text=struct%20tcphdr%20%7B,__be32%09ack_seq%3B)), this struct contains important information found in the TCP header, such as source and destination ports. But before we can access any of this data, we have to do another safety check to ensure the TCP header is not malformed. This safety check is found in the next if statement. After this check we can safely access data within the TCP header. So next onto our actual port punching condition. Since we have access to the destination port, we can check if it's not equal to port 22. In this case we're keeping port 22 open while closing all other ports. Now there is a strange looking function that we use called htons. This is one of 4 important functions when working with low level networking. These for functions are:
+
+* htons (**h**ost short **to** **n**etwork **s**hort)
+* htonl (**h**ost long **to** **n**etwork **l**ong)
+* ntohs (__n__etwork short **to** __h__ost **s**hort)
+* ntonl (__n__etwork long **to** __h__ost __l__ong)
+
+Network and host refer to the different byte orders, these byte orders mainly exist due to endianness (little endian and big endian CPUs). These functions just convert data (16 bit shorts or 32 bit longs) to network order, which represents the byte order of the current system while host order is always big endian. So if a system is little endian, it will have to convert the host byte order data (which is big endian) to a little endian format to be usable. Meanwhile, a big endian system won't have to do much since host byte order is already in big endian format. We could also re-create that if statement as the following instead:
+
+```c
+if (tcp->dest != ntohs(22))
+```
+
+This produces the same result as the one seen in the code sample earlier, the only thing is we're doing the endianness/byte order conversion on the number 22 instead of on tcp->dest. We also use the ntohs function since it is the inverse of htons. 
+
+Understanding byte ordering is incredibly valuable when working with XDP and eBPF in general. This is essentially everything needed to know to implement basic XDP filtering. As usual, the code sample for this filter can be found in the samples folder.
+
