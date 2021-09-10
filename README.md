@@ -244,8 +244,8 @@ This example will block all TCP packets that are not to port 22 (SSH port). Whil
 
 * htons (**h**ost short **to** **n**etwork **s**hort)
 * htonl (**h**ost long **to** **n**etwork **l**ong)
-* ntohs (__n__etwork short **to** __h__ost **s**hort)
-* ntonl (__n__etwork long **to** __h__ost __l__ong)
+* ntohs (**n**etwork short **to** **h**ost **s**hort)
+* ntonl (**n**etwork long **to** **h**ost **l**ong)
 
 Network and host refer to the different byte orders, these byte orders mainly exist due to endianness (little endian and big endian CPUs). These functions just convert data (16 bit shorts or 32 bit longs) to network order, which represents the byte order of the current system while host order is always big endian. So if a system is little endian, it will have to convert the host byte order data (which is big endian) to a little endian format to be usable. Meanwhile, a big endian system won't have to do much since host byte order is already in big endian format. We could also re-create that if statement as the following instead:
 
