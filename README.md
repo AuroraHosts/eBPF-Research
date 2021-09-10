@@ -142,7 +142,7 @@ The modes don't change how your XDP program will work, they only change how it w
 
 The next topic of this section is the actual performance itself, how fast do XDP programs really run? Well, the answer is very fast. Before XDP started to creep into the standard for mitigation, iptables were and still are one of the most widely used methods of mitigation. Iptables aren't known for their speed though, evidently they won't compare to an eBPF program. The following is a chart comparing the number of packets handled by different filtering tools. 
 
-![BPF performance test by Cilium](C:\Code Related\eBPF Work\eBPF-Research\img\bpfilter_performance.png)
+![BPF performance test by Cilium](./img/bpfilter_performance.png)
 
 > Image taken from: https://cilium.io/blog/2018/04/17/why-is-the-kernel-community-replacing-iptables
 
