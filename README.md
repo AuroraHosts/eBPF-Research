@@ -20,15 +20,15 @@ It's evident that eBPF is used in the networking sector (given its definition, B
 
 ## How can we benefit from eBPF?
 
-We can use eBPF to mitigate attacks against our own servers. This would be done through one of eBPF's program types, XDP. E**X**press **D**ata **P**ath (XDP) is simple and easy to use when it comes to packet handling and mitigation. An XDP program would run on a network interface and run itself on each incoming packet to that interface. The program would look for abnormalities in packets to drop those packets. 
+We can use eBPF to mitigate attacks against our own servers. This would be done through one of eBPF's program types, XDP. E**X**press **D**ata **P**ath (XDP) is simple and easy to use when it comes to packet handling and mitigation. An XDP program would run on a network interface and get called on each incoming packet to that interface. The program would look for abnormalities in packets to drop those packets. 
 
-We can specifically benefit from XDP with application filters. Application filters are commonly XDP programs that are built around a specific application. An 'application' in this case just represents any targeted program that would be running on a server, it can be a game, a database, a website or anything else. The goal of these application filters are to only pass through legitimate traffic while preventing all other traffic. This kind of filtering has proven to be more effective than general purpose filtering but can only protect against a single type of service. Companies like Path.net are renown for their application filtering. 
+We can specifically benefit from XDP with application filters. Application filters are commonly XDP programs that are built around a specific application. An 'application' in this case just represents any targeted program that would be running on a server, it can be a game, a database, a webserver or any other public facing service. The goal of these application filters are to only pass through legitimate traffic while preventing any malicious traffic. This kind of filtering has proven to be more effective than general purpose filtering but can only protect against a single type of service. 
 
 ### An example of how an application filter can work
 
-Let's say we're trying to protect a FiveM server from DDoS attacks. Now FiveM runs on port 30120 by default so we already know that 30120 will be the port used for filtering in our application filter. Next we know that FiveM runs on both the TCP and UDP protocols so we can allow those 2 while blocking all other IP based protocols. This is just the basic information, however when working on application filtering there are much more nuanced quirks to an application. For example we would also need to look into the following:
+Let's say we're trying to protect a webserver server from DDoS attacks. Now say our webserver runs on port 8080 so we already know that 8080 will be the port used for filtering in our application filter. Next we know that a webserver uses only the TCP protocol, so we can allow only TCP traffic to pass through while blocking all other IP based protocols. This is just the basic information, however when working on application filtering there are much more nuanced quirks to an application. For example we would also need to look into the following:
 
-* How the application uses it's protocols (I.e, FiveM uses UDP for in-game data and TCP for initializing connections and downloading server resources).
+* How the application uses it's protocols (I.e, a multiplayer game might use UDP for in-game data and TCP for initializing connections and downloading resources).
 * How each packet is formed and structured.
 * Looking into if the application uses other application layer protocols (such as HTTP) and filtering those as necessary.
 * Rate limiting based on the application.
@@ -44,14 +44,14 @@ There are also more general purpose filtering methods that can filter generic at
 
 eBPF programming is drastically different than traditional programming due to it's hard restrictions on the use of external functions. Firstly, eBPF programming is not limited to any language, since at a basic level, you're just making syscalls to the kernel. Meaning that you can effectively develop eBPF programs in almost any language, given that there is support for making syscalls. However there are 4 languages in particular that are most widely used in eBPF development. Those languages are:
 
-* C (The most supported language, has helper libraries like [libbpf](https://github.com/libbpf/libbpf) and [xdp-tools](https://www.youtube.com/watch?v=C7wPLB0l97k))
+* C (The most supported language, has helper libraries like [libbpf](https://github.com/libbpf/libbpf) and [xdp-tools](https://github.com/xdp-project/xdp-tools))
 * Go (With the help of [Go eBPF](https://github.com/dropbox/goebpf))
 * Rust (With the help of [RedBPF](https://github.com/foniod/redbpf))
 * Python (This is not a standalone eBPF development language, it's paired with C through the use of [bcc](https://github.com/iovisor/bcc))
 
 While there are a growing number of eBPF supported languages, C is still the most widely used and supported language. All of the other libraries have their own limitations and missing support in some areas of eBPF. 
 
-Now onto the workings of XDP programs in C. An XDP program in C will always start with a single function, this function is what gets executed every time a packet is received, this is also where our mitigations methods would take place. This function also takes in a single parameter, that being the [xdp_md struct](https://github.com/torvalds/linux/blob/master/include/uapi/linux/bpf.h#:~:text=struct%20xdp_md%20%7B,%7D%3B) (link to the definition included). There are 2 variables in particular for now, the **data** and **data_end** variables. While these two variables are defined with type __u32 (unsigned 32 bit integer), they are actually pointers in disguise that need to be casted to void pointers. The data variable is a pointer to the first byte in the packet while the data_end variable is a pointer to the last byte in the packet. In other words, the packet data lies between these two pointers. 
+Now onto the workings of XDP programs in C. An XDP program in C will always start with a single function, this function is what gets executed every time a packet is received, this is also where our mitigations methods would take place. This function also takes in a single parameter, that being the [xdp_md struct](https://github.com/torvalds/linux/blob/master/include/uapi/linux/bpf.h#L6331) (link to the definition included). There are 2 variables in particular for now, the **data** and **data_end** variables. While these two variables are defined with type __u32 (unsigned 32 bit integer), they are actually pointers in disguise that need to be casted to void pointers. The data variable is a pointer to the first byte in the packet while the data_end variable is a pointer to the last byte in the packet. In other words, the packet data lies between these two pointers. 
 
 There are other variables as part of the xdp_md struct however they are not needed for the basic implementation of an XDP filter.
 
@@ -79,7 +79,7 @@ char _license[] SEC("license") = "GPL";
 
 3. Next we have the main function called pass_filter, it gets defined under the "xdp_pass" section and takes in an xdp_md struct pointer called ctx. This represents the context of the packet we're passing in.
 
-4. In the function pass_filter, we only return XDP_PASS. This is one of a few actions or return codes in XDP. XDP_PASS just means that we should let the current packet (as passed in by the ctx pointer) pass up the network stack. There are a few more XDP actions such as:
+4. In the function pass_filter, we only return XDP_PASS. This is one of a few actions or return codes in XDP. XDP_PASS just means that we should let the current packet (as passed in by the ctx pointer) pass up through the network stack. There are a few more XDP actions such as:
 
    * XDP_DROP
    * XDP_TX
@@ -100,9 +100,9 @@ clang -Wall -O2 -g -target bpf -c xdp_pass.c -o xdp_pass.o
 
 This compiles the XDP program into an object file that can be loaded into the kernel. Unlike traditional programming, this does not have to be linked into an executable. 
 
-> Note: If compilation fails, you may be missing some kernel headers. Clone the [LightGate](https://github.com/AuroraHosts/LightGate/tree/c-rework) repository and execute run.sh for it to download and install many of the necessary headers and dependencies.
+> Note: If compilation fails, you may be missing some kernel headers. I have an [xdp-autosetup](https://github.com/TylerStAmour/xdp-autosetup) repository available which, upon executing run.sh, will install xdp-tools and *may* install the correct headers, depending on Kernel version and Linux distro.  
 
-Once compiled, we can load this object file onto the kernel. We can do this through one of the LightGate's dependencies, xdp-tools. Xdp-tools contains various programs that can help with XDP development, such as xdp-loader. Traditionally, loading is done the iproute command, with xdp-loader, it's abstracted into a more simple command that also does some background tracking. Now onto loading, move to the xdp-loader directory within the xdp-tools repository. Now you can load the XDP program onto the kernel by running the following command:
+Once compiled, we can load this object file onto the kernel. We can do this through the use of xdp-tools. Xdp-tools contains various programs that can help with XDP development, such as xdp-loader. Traditionally, loading is done via the iproute command, but with xdp-loader, it's abstracted into a more simple command that also does some background tracking. Now onto loading, move to the xdp-loader directory within the xdp-tools repository. Now you can load the XDP program onto the kernel by running the following command:
 
 ```bash
 ./xdp-loader load -m skb (network interface name) (path to your XDP object file).o
@@ -134,17 +134,17 @@ This section will just contain some extra information about XDP and eBPF, it is 
 2. DRV (Aka, native mode)
 3. HW (Aka, offload mode)
 
-The modes don't change how your XDP program will work, they only change how it will run. While you can run XDP programs in generic mode on almost any system running a sufficiently new Kernel, you should look into the benefits of the other modes when applicable. 
+The modes don't change how your XDP program will work, they only change how it will be run. While you can run XDP programs in generic mode on almost any system running a sufficiently new Kernel, you should look into the benefits of the other modes when applicable. 
 
 1. Generic mode is considered the least efficient of all three modes, however it's benefit is its portability. Typically to run XDP programs, you need a network driver that supports it, except in generic mode when this driver gets emulated. This is what allows its portability to many systems.
-2. Native mode is generally faster than the previous mode as it skips the emulation step. This mode is for when you have a network driver that has XDP support, this support is generally found in enterprise hardware. 
+2. Native mode is generally faster than the previous mode as it skips the emulation step. This mode is meant for users with a network driver that has XDP support, this support is generally found in enterprise hardware. 
 3. Offload mode, as the name implies, allows you to offload programs onto the network card itself. This means that all the XDP processing gets done on the network card itself, instead of getting run by the CPU. While this has some performance benefits, its use is very niche as it has much less support than native or generic mode programs. This lack of features and support is mostly seen when using eBPF maps (which will be explored later).
 
 The next topic of this section is the actual performance itself, how fast do XDP programs really run? Well, the answer is very fast. Before XDP started to creep into the standard for mitigation, iptables were and still are one of the most widely used methods of mitigation. Iptables aren't known for their speed though, evidently they won't compare to an eBPF program. The following is a chart comparing the number of packets handled by different filtering tools. 
 
 ![BPF performance test by Cilium](./img/bpfilter_performance.png)
 
-> Image taken from: https://cilium.io/blog/2018/04/17/why-is-the-kernel-community-replacing-iptables
+> Source: https://cilium.io/blog/2018/04/17/why-is-the-kernel-community-replacing-iptables
 
 While the eBPF program was running in offloaded mode, it still goes to show the drastic improvements by using eBPF and XDP. 
 
@@ -152,7 +152,7 @@ While the eBPF program was running in offloaded mode, it still goes to show the 
 
 ## Implementing filtering methods into XDP
 
-There are infinite methods of filtration that we can create with XDP however we'll start simple, with port punching. Port punching is a very effective method of general filtering that should be applied whenever possible. It consists of only opening ports that we're using and keeping everything else closed. Simple, right? To implement this we have to first delve into packet parsing, specifically parsing the different headers of a packet (ethernet header, IP header, etc). Now let's get started. We'll be going back to the previous XDP example, we'll only be changing the name of the section and name of the function for conventional purposes.
+There are many methods of filtration that we can create with XDP, however we'll start simple with port punching. Port punching is a very effective method of general filtering that should be applied whenever possible. It consists of only opening ports that we're using and keeping everything else closed. Simple, right? To implement this we have to first delve into packet parsing, specifically parsing the different headers of a packet (ethernet header, IP header, etc). Now let's get started. We'll be going back to the previous XDP example, we'll only be changing the name of the section and name of the function for conventional purposes.
 
 ```c
 SEC("xdp_filter")
@@ -217,7 +217,7 @@ int xdp_filter(struct *xdp_md ctx) {
 }
 ```
 
-While this is a valid XDP program, it isn't any good for filtering. It's only goal is to block any UDP packets from entering the network stack, but maybe this can be useful in very niche cases. Anyways, it's main goal was to serve as an example for parsing IP and Ethernet headers. Now onto some proper port punching.
+While this is a valid XDP program, it isn't any good for filtering. It's only goal is to block all UDP packets from entering the network stack, but maybe this can be useful in very niche cases. Anyways, it's main goal was to serve as an example for parsing IP and Ethernet headers. Now onto some proper port punching.
 
 ```c
 SEC("xdp_punch")
@@ -242,14 +242,14 @@ int xdp_port_punch(struct *xdp_md ctx) {
 }
 ```
 
-This example will block all TCP packets that are not to port 22 (SSH port). While we could also have this block UDP packets as well as other protocols, we'll stick to blocking TCP traffic for now. There are a few new things in this example though. Firstly, we changed the IPPROTO_UDP from the last example to IPPROTO_TCP, so that we can know which packets are TCP based. Next we can safely parse the TCP header ([tcphdr struct](https://github.com/torvalds/linux/blob/master/include/uapi/linux/tcp.h#:~:text=struct%20tcphdr%20%7B,__be32%09ack_seq%3B)), this struct contains important information found in the TCP header, such as source and destination ports. But before we can access any of this data, we have to do another safety check to ensure the TCP header is not malformed. This safety check is found in the next if statement. After this check we can safely access data within the TCP header. So next onto our actual port punching condition. Since we have access to the destination port, we can check if it's not equal to port 22. In this case we're keeping port 22 open while closing all other ports. Now there is a strange looking function that we use called htons. This is one of 4 important functions when working with low level networking. These for functions are:
+This example will block all TCP packets that are not to port 22 (SSH port). While we could also have this block UDP packets as well as other protocols, we'll stick to blocking TCP traffic for now. There are a few new things in this example though. Firstly, we changed the IPPROTO_UDP from the last example to IPPROTO_TCP, so that we can know which packets are TCP based. Next we can safely parse the TCP header ([tcphdr struct](https://github.com/torvalds/linux/blob/master/include/uapi/linux/tcp.h#L25)), this struct contains important information found in the TCP header, such as source and destination ports. But before we can access any of this data, we have to do another safety check to ensure the TCP header is not malformed. This safety check is found in the next if statement. After this check we can safely access data within the TCP header. Now onto our actual port punching condition. Since we have access to the destination port, we can check if it's not equal to port 22. In this case we're keeping port 22 open while closing all other ports. However, the destination port may not be stored in the correct byte order depending on our system, so we use htons. This is one of 4 important functions when working with low level networking. These for functions are:
 
 * htons (**h**ost short **to** **n**etwork **s**hort)
 * htonl (**h**ost long **to** **n**etwork **l**ong)
 * ntohs (**n**etwork short **to** **h**ost **s**hort)
 * ntonl (**n**etwork long **to** **h**ost **l**ong)
 
-Network and host refer to the different byte orders, these byte orders mainly exist due to endianness (little endian and big endian CPUs). These functions just convert data (16 bit shorts or 32 bit longs) to network order, which represents the byte order of the current system while host order is always big endian. So if a system is little endian, it will have to convert the host byte order data (which is big endian) to a little endian format to be usable. Meanwhile, a big endian system won't have to do much since host byte order is already in big endian format. We could also re-create that if statement as the following instead:
+Network and host refer to the different byte orders, these byte orders exist due to endianness (little endian and big endian CPUs). These functions just convert data (16 bit shorts or 32 bit longs) to network byte order, which is always big endian. So if our system is little endian, it will have to convert the host byte order data (little endian in this case) to a big endian format to be usable. Meanwhile, a big endian system won't have to do anything since the host byte order is already big endian. We could also re-create that if statement as the following instead:
 
 ```c
 if (tcp->dest != ntohs(22))
@@ -257,5 +257,5 @@ if (tcp->dest != ntohs(22))
 
 This produces the same result as the one seen in the code sample earlier, the only thing is we're doing the endianness/byte order conversion on the number 22 instead of on tcp->dest. We also use the ntohs function since it is the inverse of htons. 
 
-Understanding byte ordering is incredibly valuable when working with XDP and eBPF in general. This is essentially everything needed to know to implement basic XDP filtering. As usual, the code sample for this filter can be found in the samples folder.
+Understanding byte ordering is important when working with XDP and eBPF in general. This is essentially everything needed to know to implement basic XDP filtering. As usual, the code sample for this filter can be found in the samples folder.
 
