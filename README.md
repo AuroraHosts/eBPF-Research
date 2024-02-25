@@ -92,7 +92,7 @@ char _license[] SEC("license") = "GPL";
 
 > Note: All XDP sample programs can be found in the samples folder included in the repo.
 
-Now you can test this sample by compiling it into an object file and loading it into the kernel. Clang is currently the only compiler that supports bpf compilation so Clang must be installed. Once it's been installed, you can compile by running the following command:
+Now you can test this sample by compiling it into an object file and loading it into the kernel. Clang is currently the only compiler that supports BPF compilation so Clang must be installed. Once it's been installed, you can compile by running the following command:
 
 ```bash
 clang -Wall -O2 -g -target bpf -c xdp_pass.c -o xdp_pass.o
